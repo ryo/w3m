@@ -849,11 +849,11 @@ readHeader(URLFile *uf, Buffer *newBuf, int thru, ParsedURL *pu)
 		if (show_cookie) {
 		    if (flag & COO_SECURE)
 		        disp_message_nsec("Received a secured cookie",
-					  FALSE, 0.1, TRUE, FALSE);
+					  FALSE, 0.05, TRUE, FALSE);
 		    else
 		        disp_message_nsec(Sprintf("Received cookie: %s=%s",
 						  name->ptr, value->ptr)->ptr,
-					  FALSE, 0.1, TRUE, FALSE);
+					  FALSE, 0.05, TRUE, FALSE);
 		}
 		err =
 		    add_cookie(pu, name, value, expires, domain, path, flag,
@@ -888,14 +888,14 @@ readHeader(URLFile *uf, Buffer *newBuf, int thru, ParsedURL *pu)
 				"This cookie was rejected to prevent security violation.";
 			record_err_message(emsg);
 			if (show_cookie)
-			    disp_message_nsec(emsg, FALSE, 1, TRUE, FALSE);
+			    disp_message_nsec(emsg, FALSE, 0.2, TRUE, FALSE);
 		    }
 		    else
 			if (show_cookie)
 			    disp_message_nsec(Sprintf
 					  ("Accepting invalid cookie: %s=%s",
 					   name->ptr, value->ptr)->ptr, FALSE,
-					  1, TRUE, FALSE);
+					  0.2, TRUE, FALSE);
 		}
 	    }
 	}

@@ -109,6 +109,8 @@ extern void chkNMIDBuffer(Buffer *buf);
 extern void rFrame(void);
 extern void extbrz(void);
 extern void linkbrz(void);
+extern void execextbrz(void);
+extern void execlinkbrz(void);
 extern void curlno(void);
 extern void execCmd(void);
 #ifdef USE_IMAGE

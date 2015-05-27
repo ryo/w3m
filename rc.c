@@ -181,6 +181,7 @@ static int OptionEncode = FALSE;
 #define CMT_FIXED_WHEEL_SCROLL_COUNT N_("(B only)Scroll by # lines")
 #endif				/* USE_MOUSE */
 #define CMT_CLEAR_BUF     N_("Free memory of undisplayed buffers")
+#define CMT_MAX_BUFFER_COUNT N_("maximum number of buffers kept")
 #define CMT_NOSENDREFERER N_("Suppress `Referer:' header")
 #define CMT_IGNORE_CASE N_("Search case-insensitively")
 #define CMT_USE_LESSOPEN N_("Use LESSOPEN")
@@ -516,6 +517,8 @@ struct param_ptr params3[] = {
 #endif				/* USE_MOUSE */
     {"clear_buffer", P_INT, PI_ONOFF, (void *)&clear_buffer, CMT_CLEAR_BUF,
      NULL},
+    {"max_buffer_count", P_INT, PI_TEXT, (void *)&max_buffer_count,
+     CMT_MAX_BUFFER_COUNT, NULL},
     {"decode_cte", P_CHARINT, PI_ONOFF, (void *)&DecodeCTE, CMT_DECODE_CTE,
      NULL},
     {"auto_uncompress", P_CHARINT, PI_ONOFF, (void *)&AutoUncompress,
@@ -1247,80 +1250,109 @@ sync_with_option(void)
 void
 init_rc(void)
 {
-    int i;
-    struct stat st;
-    FILE *f;
+	int i;
+	struct stat st;
+	FILE *f;
 
-    if (rc_dir != NULL)
-	goto open_rc;
+	if (rc_dir != NULL)
+		goto open_rc;
 
-    rc_dir = expandPath(RC_DIR);
-    i = strlen(rc_dir);
-    if (i > 1 && rc_dir[i - 1] == '/')
-	rc_dir[i - 1] = '\0';
+	rc_dir = expandPath(RC_DIR);
+	i = strlen(rc_dir);
+	if (i > 1 && rc_dir[i - 1] == '/')
+		rc_dir[i - 1] = '\0';
+
+		tmp_dir = expandPath(TMP_DIR);
+		i = strlen(tmp_dir);
+		if (i > 1 && tmp_dir[i - 1] == '/')
+				tmp_dir[i - 1] = '\0';
 
 #ifdef USE_M17N
-    display_charset_str = wc_get_ces_list();
-    document_charset_str = display_charset_str;
-    system_charset_str = display_charset_str;
+	display_charset_str = wc_get_ces_list();
+	document_charset_str = display_charset_str;
+	system_charset_str = display_charset_str;
 #endif
 
-    if (stat(rc_dir, &st) < 0) {
-	if (errno == ENOENT) {	/* no directory */
-	    if (do_mkdir(rc_dir, 0700) < 0) {
-		fprintf(stderr, "Can't create config directory (%s)!", rc_dir);
+	if (stat(rc_dir, &st) < 0) {
+		if (errno == ENOENT) {	/* no directory */
+			if (do_mkdir(rc_dir, 0700) < 0) {
+				fprintf(stderr, "Can't create config directory (%s)!", rc_dir);
+				goto rc_dir_err;
+			}
+			else {
+				stat(rc_dir, &st);
+			}
+		}
+		else {
+			fprintf(stderr, "Can't open config directory (%s)!", rc_dir);
+			goto rc_dir_err;
+		}
+	}
+	if (!S_ISDIR(st.st_mode)) {
+		/* not a directory */
+		fprintf(stderr, "%s is not a directory!", rc_dir);
 		goto rc_dir_err;
-	    }
-	    else {
-		stat(rc_dir, &st);
-	    }
 	}
-	else {
-	    fprintf(stderr, "Can't open config directory (%s)!", rc_dir);
-	    goto rc_dir_err;
+	if (!(st.st_mode & S_IWUSR)) {
+		fprintf(stderr, "%s is not writable!", rc_dir);
+		goto rc_dir_err;
 	}
-    }
-    if (!S_ISDIR(st.st_mode)) {
-	/* not a directory */
-	fprintf(stderr, "%s is not a directory!", rc_dir);
-	goto rc_dir_err;
-    }
-    if (!(st.st_mode & S_IWUSR)) {
-	fprintf(stderr, "%s is not writable!", rc_dir);
-	goto rc_dir_err;
-    }
-    no_rc_dir = FALSE;
-    tmp_dir = rc_dir;
+	no_rc_dir = FALSE;
+	tmp_dir = rc_dir;
+	if (stat(tmp_dir, &st) < 0) {
+		if (errno == ENOENT) {	/* no directory */
+			if (do_mkdir(tmp_dir, 0700) < 0) {
+				fprintf(stderr, "Can't create temporary directory (%s)!", tmp_dir);
+				tmp_dir = rc_dir;
+			}
+			else {
+				stat(tmp_dir, &st);
+			}
+		}
+		else {
+			fprintf(stderr, "Can't open temporary directory (%s)!", tmp_dir);
+			tmp_dir = rc_dir;
+		}
+	}
+	if (!S_ISDIR(st.st_mode)) {
+		/* not a directory */
+		fprintf(stderr, "%s is not a directory!", tmp_dir);
+		tmp_dir = rc_dir;
+	}
+	if (!(st.st_mode & S_IWUSR)) {
+		fprintf(stderr, "%s is not writable!", tmp_dir);
+		tmp_dir = rc_dir;
+	}
 
-    if (config_file == NULL)
-	config_file = rcFile(CONFIG_FILE);
+	if (config_file == NULL)
+		config_file = rcFile(CONFIG_FILE);
 
-    create_option_search_table();
+	create_option_search_table();
 
   open_rc:
-    /* open config file */
-    if ((f = fopen(etcFile(W3MCONFIG), "rt")) != NULL) {
-	interpret_rc(f);
-	fclose(f);
-    }
-    if ((f = fopen(confFile(CONFIG_FILE), "rt")) != NULL) {
-	interpret_rc(f);
-	fclose(f);
-    }
-    if (config_file && (f = fopen(config_file, "rt")) != NULL) {
-	interpret_rc(f);
-	fclose(f);
-    }
-    return;
+	/* open config file */
+	if ((f = fopen(etcFile(W3MCONFIG), "rt")) != NULL) {
+		interpret_rc(f);
+		fclose(f);
+	}
+	if ((f = fopen(confFile(CONFIG_FILE), "rt")) != NULL) {
+		interpret_rc(f);
+		fclose(f);
+	}
+	if (config_file && (f = fopen(config_file, "rt")) != NULL) {
+		interpret_rc(f);
+		fclose(f);
+	}
+	return;
 
   rc_dir_err:
-    no_rc_dir = TRUE;
-    if (((tmp_dir = getenv("TMPDIR")) == NULL || *tmp_dir == '\0') &&
-	((tmp_dir = getenv("TMP")) == NULL || *tmp_dir == '\0') &&
-	((tmp_dir = getenv("TEMP")) == NULL || *tmp_dir == '\0'))
-	tmp_dir = "/tmp";
-    create_option_search_table();
-    goto open_rc;
+	no_rc_dir = TRUE;
+	if (((tmp_dir = getenv("TMPDIR")) == NULL || *tmp_dir == '\0') &&
+		((tmp_dir = getenv("TMP")) == NULL || *tmp_dir == '\0') &&
+		((tmp_dir = getenv("TEMP")) == NULL || *tmp_dir == '\0'))
+		tmp_dir = "/tmp";
+	create_option_search_table();
+	goto open_rc;
 }
 
 

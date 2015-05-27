@@ -1435,9 +1435,15 @@ open_pipe_rw(FILE ** fr, FILE ** fw)
 void
 myExec(char *command)
 {
-    mySignal(SIGINT, SIG_DFL);
-    execl("/bin/sh", "sh", "-c", command, NULL);
-    exit(127);
+#define CMDBUF (1024 * 64)
+	char *p = malloc(CMDBUF);
+	if (p == NULL)
+		exit(127);
+	strcpy(p, "exec ");
+	strlcat(p, command, CMDBUF);
+	mySignal(SIGINT, SIG_DFL);
+	execl("/bin/sh", "sh", "-c", p, NULL);
+	exit(127);
 }
 
 void
@@ -1663,13 +1669,13 @@ static unsigned int tmpf_seq[MAX_TMPF_TYPE];
 Str
 tmpfname(int type, char *ext)
 {
-    Str tmpf;
-    tmpf = Sprintf("%s/w3m%s%d-%d%s",
-		   tmp_dir,
-		   tmpf_base[type],
-		   CurrentPid, tmpf_seq[type]++, (ext) ? ext : "");
-    pushText(fileToDelete, tmpf->ptr);
-    return tmpf;
+	Str tmpf;
+	tmpf = Sprintf("%s/w3m-%d-%s-%d%s",
+	               tmp_dir,
+	               CurrentPid, tmpf_base[type],
+	               tmpf_seq[type]++, (ext) ? ext : "");
+	pushText(fileToDelete, tmpf->ptr);
+	return tmpf;
 }
 
 static char *monthtbl[] = {

@@ -36,6 +36,8 @@ conv_entity(unsigned int c)
 {
     char b = c & 0xff;
 
+    if (c == '\n' || c == '\r')
+	return "\n";
     if (c < 0x20)		/* C0 */
 	return " ";
     if (c < 0x7f)		/* ASCII */

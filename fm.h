@@ -1150,6 +1150,7 @@ global char *ssl_forbid_method init(NULL);
 
 global int is_redisplay init(FALSE);
 global int clear_buffer init(TRUE);
+global int max_buffer_count init(0);
 global double pixel_per_char init(DEFAULT_PIXEL_PER_CHAR);
 global int set_pixel_per_char init(FALSE);
 #ifdef USE_IMAGE

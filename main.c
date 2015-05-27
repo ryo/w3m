@@ -833,7 +833,9 @@ main(int argc, char **argv, char **envp)
     mySignal(SIGPIPE, SigPipe);
 #endif
 
+#if 0
     orig_GC_warn_proc = GC_set_warn_proc(wrap_GC_warn_proc);
+#endif
     err_msg = Strnew();
     if (load_argc == 0) {
 	/* no URL specified */
@@ -1405,6 +1407,7 @@ static void
 pushBuffer(Buffer *buf)
 {
     Buffer *b;
+    int n;
 
 #ifdef USE_IMAGE
     deleteImage(Currentbuf);
@@ -1423,7 +1426,16 @@ pushBuffer(Buffer *buf)
 #ifdef USE_BUFINFO
     saveBufferInfo();
 #endif
-
+	/* limit the number of buffers kept */
+	if (max_buffer_count > 0) {
+		n = 0;
+		for (b = Firstbuf; b != NULL; b = b->nextBuffer)
+			if (++n > max_buffer_count)
+				break;
+		for (; b != NULL && b != Firstbuf; b = deleteBuffer(Firstbuf, b))
+			if (b == Currentbuf)
+				Currentbuf = Firstbuf;
+	}
 }
 
 static void
@@ -2273,7 +2285,7 @@ DEFUN(movR1, MOVE_RIGHT1,
 static wc_uint32
 getChar(char *p)
 {
-    return wc_any_to_ucs(wtf_parse1(&p));
+    return wc_any_to_ucs(wtf_parse1((wc_uchar**)&p));
 }
 
 static int
@@ -4973,83 +4985,117 @@ DEFUN(rFrame, FRAME, "Render frame")
 
 /* spawn external browser */
 static void
-invoke_browser(char *url)
+invoke_browser(char *url, int do_exec)
 {
-    Str cmd;
-    char *browser = NULL;
-    int bg = 0, len;
+	Str cmd;
+	char *browser = NULL;
+	int bg = 0, len;
 
-    CurrentKeyData = NULL;	/* not allowed in w3m-control: */
-    browser = searchKeyData();
-    if (browser == NULL || *browser == '\0') {
-	switch (prec_num) {
-	case 0:
-	case 1:
-	    browser = ExtBrowser;
-	    break;
-	case 2:
-	    browser = ExtBrowser2;
-	    break;
-	case 3:
-	    browser = ExtBrowser3;
-	    break;
-	}
+	CurrentKeyData = NULL;		/* not allowed in w3m-control: */
+	browser = searchKeyData();
 	if (browser == NULL || *browser == '\0') {
-	    browser = inputStr("Browse command: ", NULL);
-	    if (browser != NULL)
+		switch (prec_num) {
+		case 0:
+		case 1:
+			browser = ExtBrowser;
+			break;
+		case 2:
+			browser = ExtBrowser2;
+			break;
+		case 3:
+			browser = ExtBrowser3;
+			break;
+		}
+		if (browser == NULL || *browser == '\0') {
+			browser = inputStr("Browse command: ", NULL);
+			if (browser != NULL)
+				browser = conv_to_system(browser);
+		}
+	} else {
 		browser = conv_to_system(browser);
 	}
-    }
-    else {
-	browser = conv_to_system(browser);
-    }
-    if (browser == NULL || *browser == '\0') {
-	displayBuffer(Currentbuf, B_NORMAL);
-	return;
-    }
+	if (browser == NULL || *browser == '\0') {
+		displayBuffer(Currentbuf, B_NORMAL);
+		return;
+	}
 
-    if ((len = strlen(browser)) >= 2 && browser[len - 1] == '&' &&
-	browser[len - 2] != '\\') {
-	browser = allocStr(browser, len - 2);
-	bg = 1;
-    }
-    cmd = myExtCommand(browser, shell_quote(url), FALSE);
-    Strremovetrailingspaces(cmd);
-    fmTerm();
-    mySystem(cmd->ptr, bg);
-    fmInit();
-    displayBuffer(Currentbuf, B_FORCE_REDRAW);
+	if ((len = strlen(browser)) >= 2 && browser[len - 1] == '&' &&
+	    browser[len - 2] != '\\') {
+		browser = allocStr(browser, len - 2);
+		bg = 1;
+	}
+	cmd = myExtCommand(browser, shell_quote(url), FALSE);
+	Strremovetrailingspaces(cmd);
+	fmTerm();
+	if (do_exec) {
+		myExec(cmd->ptr);
+	} else {
+		mySystem(cmd->ptr, bg);
+	}
+	fmInit();
+	displayBuffer(Currentbuf, B_FORCE_REDRAW);
 }
 
 DEFUN(extbrz, EXTERN, "Execute external browser")
 {
-    if (Currentbuf->bufferprop & BP_INTERNAL) {
-	/* FIXME: gettextize? */
-	disp_err_message("Can't browse...", TRUE);
-	return;
-    }
-    if (Currentbuf->currentURL.scheme == SCM_LOCAL &&
-	!strcmp(Currentbuf->currentURL.file, "-")) {
-	/* file is std input */
-	/* FIXME: gettextize? */
-	disp_err_message("Can't browse stdin", TRUE);
-	return;
-    }
-    invoke_browser(parsedURL2Str(&Currentbuf->currentURL)->ptr);
+	if (Currentbuf->bufferprop & BP_INTERNAL) {
+		/* FIXME: gettextize? */
+		disp_err_message("Can't browse...", TRUE);
+		return;
+	}
+	if (Currentbuf->currentURL.scheme == SCM_LOCAL &&
+		!strcmp(Currentbuf->currentURL.file, "-")) {
+		/* file is std input */
+		/* FIXME: gettextize? */
+		disp_err_message("Can't browse stdin", TRUE);
+		return;
+	}
+	invoke_browser(parsedURL2Str(&Currentbuf->currentURL)->ptr, 0);
 }
 
-DEFUN(linkbrz, EXTERN_LINK, "View current link using external browser")
+DEFUN(execlinkbrz, EXTERN_LINK, "View current link using external browser")
 {
-    Anchor *a;
-    ParsedURL pu;
+	Anchor *a;
+	ParsedURL pu;
 
-    if (Currentbuf->firstLine == NULL)
-	return;
-    a = retrieveCurrentAnchor(Currentbuf);
-    if (a == NULL)
-	return;
-    parseURL2(a->url, &pu, baseURL(Currentbuf));
-    invoke_browser(parsedURL2Str(&pu)->ptr);
+	if (Currentbuf->firstLine == NULL)
+		return;
+	a = retrieveCurrentAnchor(Currentbuf);
+	if (a == NULL)
+		return;
+	parseURL2(a->url, &pu, baseURL(Currentbuf));
+	invoke_browser(parsedURL2Str(&pu)->ptr, 0);
+}
+
+DEFUN(execextbrz, EXEC, "Execute external browser")
+{
+	if (Currentbuf->bufferprop & BP_INTERNAL) {
+		/* FIXME: gettextize? */
+		disp_err_message("Can't browse...", TRUE);
+		return;
+	}
+	if (Currentbuf->currentURL.scheme == SCM_LOCAL &&
+		!strcmp(Currentbuf->currentURL.file, "-")) {
+		/* file is std input */
+		/* FIXME: gettextize? */
+		disp_err_message("Can't browse stdin", TRUE);
+		return;
+	}
+	invoke_browser(parsedURL2Str(&Currentbuf->currentURL)->ptr, 1);
+}
+
+DEFUN(linkbrz, EXEC_LINK, "Execute external browser for current link")
+{
+	Anchor *a;
+	ParsedURL pu;
+
+	if (Currentbuf->firstLine == NULL)
+		return;
+	a = retrieveCurrentAnchor(Currentbuf);
+	if (a == NULL)
+		return;
+	parseURL2(a->url, &pu, baseURL(Currentbuf));
+	invoke_browser(parsedURL2Str(&pu)->ptr, 0);
 }
 
 /* view inline image */
@@ -5072,7 +5118,7 @@ DEFUN(followI, VIEW_IMAGE, "View image")
     if (browser != NULL && *browser != '\0') {
 	ParsedURL pu;
 	parseURL2(a->url, &pu, baseURL(Currentbuf));
-	invoke_browser(parsedURL2Str(&pu)->ptr);
+	invoke_browser(parsedURL2Str(&pu)->ptr, 0);
 	return;
     }
 

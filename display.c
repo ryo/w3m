@@ -1256,13 +1256,13 @@ disp_message_nsec(char *s, int redraw_current, float sec, int purge, int mouse)
 void
 disp_message(char *s, int redraw_current)
 {
-    disp_message_nsec(s, redraw_current, 10, FALSE, TRUE);
+    disp_message_nsec(s, redraw_current, 3, FALSE, TRUE);
 }
 #ifdef USE_MOUSE
 void
 disp_message_nomouse(char *s, int redraw_current)
 {
-    disp_message_nsec(s, redraw_current, 10, FALSE, FALSE);
+    disp_message_nsec(s, redraw_current, 3, FALSE, FALSE);
 }
 #endif
 
